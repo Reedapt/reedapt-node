@@ -9,7 +9,7 @@ import {
 import { Dubs } from "./resources/dubs.ts";
 import { Uploads, type UploadInput, type UploadFileOptions } from "./resources/uploads.ts";
 import { WebhookEndpoints } from "./resources/webhook-endpoints.ts";
-import type { CreateDubsParams, DubsCreated, Languages, Usage } from "./types.ts";
+import type { CreateDubsParams, DubsCreated, Languages, Usage, UsageReport } from "./types.ts";
 import { VERSION } from "./version.ts";
 import { Webhooks } from "./webhooks.ts";
 
@@ -93,7 +93,11 @@ export class Reedapt {
   readonly webhookEndpoints: WebhookEndpoints;
   readonly webhooks: Webhooks;
   readonly languages: { list: (options?: RequestOptions) => Promise<Languages> };
-  readonly usage: { retrieve: (options?: RequestOptions) => Promise<Usage> };
+  readonly usage: {
+    retrieve: (options?: RequestOptions) => Promise<Usage>;
+    /** A month (`YYYY-MM`, UTC; default this month) of minutes and dubs, per key and per language. */
+    report: (params?: { month?: string }, options?: RequestOptions) => Promise<UsageReport>;
+  };
   /** @internal */
   readonly fetch: typeof fetch;
   readonly #apiKey: string;
@@ -122,6 +126,8 @@ export class Reedapt {
     };
     this.usage = {
       retrieve: (o) => this.request({ method: "GET", path: "/usage", retry: "safe" }, o),
+      report: (params = {}, o) =>
+        this.request({ method: "GET", path: "/usage/report", query: { ...params }, retry: "safe" }, o),
     };
   }
 

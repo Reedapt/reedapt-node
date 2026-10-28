@@ -93,6 +93,30 @@ export interface Usage {
   test_preview_seconds: number;
 }
 
+export interface DubCounts {
+  completed: number;
+  in_progress: number;
+  /** Failed or cancelled. Their minutes were returned. */
+  failed: number;
+}
+
+export interface UsageCounts {
+  /** Minutes used by completed dubs. Test dubs are free. */
+  minutes: number;
+  /** Minutes reserved by dubs that haven't finished. */
+  minutes_in_progress: number;
+  dubs: DubCounts;
+}
+
+/** One month of the account's API usage. A dub counts in the month it started (UTC). */
+export interface UsageReport extends UsageCounts {
+  month: string;
+  period_start: string;
+  period_end: string;
+  keys: (UsageCounts & { key_id: string | null; mode: "live" | "test" })[];
+  languages: (UsageCounts & { target_language: string | null })[];
+}
+
 export interface WebhookEndpoint {
   id: string;
   object?: "webhook_endpoint";

@@ -216,3 +216,12 @@ test("waitUntilDone polls until the dub is final", async () => {
   assert.equal(dub.status, "completed");
   assert.deepEqual(seen, ["queued", "processing", "completed"]);
 });
+
+test("usage.report asks for the month given", async () => {
+  const { fetch, calls } = mockFetch(() => json(200, { month: "2026-09", minutes: 1, keys: [], languages: [] }));
+  const report = await client(fetch).usage.report({ month: "2026-09" });
+  assert.equal(report.month, "2026-09");
+  assert.equal(calls[0].url, "https://api.reedapt.com/v1/usage/report?month=2026-09");
+  await client(fetch).usage.report();
+  assert.equal(calls[1].url, "https://api.reedapt.com/v1/usage/report");
+});

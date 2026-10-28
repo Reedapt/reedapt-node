@@ -72,6 +72,7 @@ await reedapt.dubs.cancel("job_3f9a2c7e1b4d"); // minutes are returned
 
 await reedapt.languages.list(); // { target_languages: [...] }
 await reedapt.usage.retrieve(); // plan, key mode and minutes left
+await reedapt.usage.report({ month: "2026-10" }); // minutes and dubs per key and per language
 ```
 
 ## Webhooks
