@@ -1,0 +1,45 @@
+{
+  "name": "reedapt",
+  "version": "0.1.0",
+  "description": "The official Node.js library for the Reedapt API.",
+  "license": "MIT",
+  "homepage": "https://docs.reedapt.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Reedapt/reedapt-node.git"
+  },
+  "bugs": "https://github.com/Reedapt/reedapt-node/issues",
+  "keywords": ["reedapt", "dubbing", "translation", "voice", "api"],
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && tsc -p tsconfig.cjs.json && node scripts/finish-build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "typescript": "^5.8.0"
+  }
+}
