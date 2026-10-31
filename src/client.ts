@@ -49,6 +49,8 @@ interface Request {
   body?: unknown;
   retry: Retry;
   idempotent?: boolean;
+  /** The answer is a file's text, not JSON. */
+  text?: boolean;
 }
 
 export type DubFileParams = Omit<CreateDubsParams, "upload_id"> &
@@ -184,6 +186,7 @@ export class Reedapt {
         if (res.ok) {
           if (res.status === 204) return undefined as T;
           const text = await res.text();
+          if (req.text) return text as T;
           return (text ? JSON.parse(text) : undefined) as T;
         }
         error = APIError.from(res.status, await readError(res), res.headers);

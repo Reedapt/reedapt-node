@@ -69,6 +69,8 @@ await reedapt.dubs.list({ limit: 20 });
 for await (const dub of reedapt.dubs.listAll()) console.log(dub.id, dub.status);
 await reedapt.dubs.files("job_3f9a2c7e1b4d"); // links last an hour
 await reedapt.dubs.cancel("job_3f9a2c7e1b4d"); // minutes are returned
+await reedapt.dubs.transcript("job_3f9a2c7e1b4d"); // every line, with timing, speaker and translation
+await reedapt.dubs.subtitles("job_3f9a2c7e1b4d", { format: "vtt" }); // SRT (default) or WebVTT text
 
 await reedapt.languages.list(); // { target_languages: [...] }
 await reedapt.usage.retrieve(); // plan, key mode and minutes left
@@ -77,7 +79,7 @@ await reedapt.usage.report({ month: "2026-10" }); // minutes and dubs per key an
 
 ## Webhooks
 
-Add an endpoint under **Developers**, or with `reedapt.webhookEndpoints.create({ url })`, and keep its `whsec_` secret. Check every delivery against the raw body:
+Add an endpoint under **Developers**, or with `reedapt.webhookEndpoints.create({ url })`, and keep its `whsec_` secret. `reedapt.webhookEndpoints.resendDelivery(endpointId, deliveryId)` sends a past delivery again. Check every delivery against the raw body:
 
 ```ts
 import express from "express";

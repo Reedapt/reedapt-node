@@ -81,6 +81,31 @@ export interface DubFiles {
   expires_at: string;
 }
 
+export interface TranscriptLine {
+  start_ms: number;
+  end_ms: number;
+  /** The same label throughout a dub, such as `SPEAKER_00`. */
+  speaker?: string | null;
+  original_text: string;
+  /** The line in the dub's language. */
+  text: string;
+}
+
+/** A completed dub's lines in time order, edits made in the editor included. */
+export interface Transcript {
+  dub_id: string;
+  source_language?: string | null;
+  target_language?: string | null;
+  lines: TranscriptLine[];
+}
+
+export interface SubtitlesParams {
+  /** Defaults to `srt`. */
+  format?: "srt" | "vtt";
+  /** `target` (the default) for the dub's language, `source` for the original words. */
+  language?: "target" | "source";
+}
+
 export interface Languages {
   target_languages: string[];
 }

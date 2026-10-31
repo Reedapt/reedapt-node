@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   AuthenticationError,
+  ConflictError,
   ConnectionError,
   InvalidRequestError,
   RateLimitError,
@@ -224,4 +225,46 @@ test("usage.report asks for the month given", async () => {
   assert.equal(calls[0].url, "https://api.reedapt.com/v1/usage/report?month=2026-09");
   await client(fetch).usage.report();
   assert.equal(calls[1].url, "https://api.reedapt.com/v1/usage/report");
+});
+
+test("dubs.transcript returns the lines", async () => {
+  const line = { start_ms: 1200, end_ms: 3850, speaker: "SPEAKER_00", original_text: "Hi.", text: "Salut." };
+  const { fetch, calls } = mockFetch(() => json(200, { dub_id: "job_1", lines: [line] }));
+  const transcript = await client(fetch).dubs.transcript("job_1");
+  assert.deepEqual(transcript.lines, [line]);
+  assert.equal(calls[0].url, "https://api.reedapt.com/v1/dubs/job_1/transcript");
+});
+
+test("dubs.subtitles returns the file's text", async () => {
+  const vtt = "WEBVTT\n\n00:00:01.200 --> 00:00:03.850\nSalut.\n";
+  const { fetch, calls } = mockFetch(
+    () => new Response(vtt, { status: 200, headers: { "content-type": "text/vtt; charset=utf-8" } }),
+  );
+  assert.equal(await client(fetch).dubs.subtitles("job_1", { format: "vtt", language: "source" }), vtt);
+  assert.equal(calls[0].url, "https://api.reedapt.com/v1/dubs/job_1/subtitles?format=vtt&language=source");
+  await client(fetch).dubs.subtitles("job_1");
+  assert.equal(calls[1].url, "https://api.reedapt.com/v1/dubs/job_1/subtitles");
+});
+
+test("subtitles of an unfinished dub throw a ConflictError", async () => {
+  const { fetch } = mockFetch(() => apiError(409, "DUB_NOT_READY"));
+  await assert.rejects(client(fetch).dubs.subtitles("job_1"), (e: ConflictError) => {
+    assert.ok(e instanceof ConflictError);
+    assert.equal(e.code, "DUB_NOT_READY");
+    return true;
+  });
+});
+
+test("resending a delivery posts once and is not retried after a network failure", async () => {
+  const delivery = { id: "whd_1", event_id: "evt_1", event_type: "dub.completed", status: "pending", attempts: 0, created_at: "x" };
+  const ok = mockFetch(() => json(201, delivery));
+  assert.deepEqual(await client(ok.fetch).webhookEndpoints.resendDelivery("we_1", "whd_1"), delivery);
+  assert.equal(ok.calls[0].method, "POST");
+  assert.equal(ok.calls[0].url, "https://api.reedapt.com/v1/webhook_endpoints/we_1/deliveries/whd_1/resend");
+
+  const down = mockFetch(() => {
+    throw new TypeError("fetch failed");
+  });
+  await assert.rejects(client(down.fetch).webhookEndpoints.resendDelivery("we_1", "whd_1"), ConnectionError);
+  assert.equal(down.calls.length, 1);
 });

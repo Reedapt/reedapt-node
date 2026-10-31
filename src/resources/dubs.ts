@@ -1,6 +1,15 @@
 import { sleep, type Reedapt, type RequestOptions } from "../client.ts";
 import { WaitError } from "../errors.ts";
-import type { CreateDubsParams, Dub, DubFiles, DubList, DubsCreated, ListDubsParams } from "../types.ts";
+import type {
+  CreateDubsParams,
+  Dub,
+  DubFiles,
+  DubList,
+  DubsCreated,
+  ListDubsParams,
+  SubtitlesParams,
+  Transcript,
+} from "../types.ts";
 import type { WaitOptions } from "./uploads.ts";
 
 export interface WaitForDubOptions extends WaitOptions {
@@ -66,6 +75,28 @@ export class Dubs {
   files(dubId: string, options?: RequestOptions): Promise<DubFiles> {
     return this.#client.request(
       { method: "GET", path: `/dubs/${encodeURIComponent(dubId)}/files`, retry: "safe" },
+      options,
+    );
+  }
+
+  /** Every line of a completed dub with its timing, speaker, original words and translation. */
+  transcript(dubId: string, options?: RequestOptions): Promise<Transcript> {
+    return this.#client.request(
+      { method: "GET", path: `/dubs/${encodeURIComponent(dubId)}/transcript`, retry: "safe" },
+      options,
+    );
+  }
+
+  /** A completed dub's subtitles as SRT or WebVTT text. */
+  subtitles(dubId: string, params: SubtitlesParams = {}, options?: RequestOptions): Promise<string> {
+    return this.#client.request(
+      {
+        method: "GET",
+        path: `/dubs/${encodeURIComponent(dubId)}/subtitles`,
+        query: { ...params },
+        retry: "safe",
+        text: true,
+      },
       options,
     );
   }

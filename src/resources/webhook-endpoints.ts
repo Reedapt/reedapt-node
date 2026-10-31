@@ -1,6 +1,7 @@
 import type { Reedapt, RequestOptions } from "../client.ts";
 import type {
   CreateWebhookEndpointParams,
+  WebhookDelivery,
   WebhookDeliveryList,
   WebhookEndpoint,
   WebhookEndpointList,
@@ -57,6 +58,21 @@ export class WebhookEndpoints {
         path: `/webhook_endpoints/${encodeURIComponent(endpointId)}/deliveries`,
         query: { ...params },
         retry: "safe",
+      },
+      options,
+    );
+  }
+
+  /**
+   * Sends a past delivery's event to the endpoint again, now. It keeps its event id,
+   * so a receiver that skips repeats by event id skips it too.
+   */
+  resendDelivery(endpointId: string, deliveryId: string, options?: RequestOptions): Promise<WebhookDelivery> {
+    return this.#client.request(
+      {
+        method: "POST",
+        path: `/webhook_endpoints/${encodeURIComponent(endpointId)}/deliveries/${encodeURIComponent(deliveryId)}/resend`,
+        retry: "unsafe",
       },
       options,
     );
