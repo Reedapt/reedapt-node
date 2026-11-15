@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  APIError,
   AuthenticationError,
   ConflictError,
   ConnectionError,
@@ -267,4 +268,97 @@ test("resending a delivery posts once and is not retried after a network failure
   });
   await assert.rejects(client(down.fetch).webhookEndpoints.resendDelivery("we_1", "whd_1"), ConnectionError);
   assert.equal(down.calls.length, 1);
+});
+
+test("dubs.create passes instructions through", async () => {
+  const { fetch, calls } = mockFetch(() => json(201, { dubs: [] }));
+  await client(fetch).dubs.create({
+    upload_id: "upl_1",
+    source_language: "en",
+    target_languages: ["fr"],
+    instructions: "Keep the name Adaeze.",
+  });
+  assert.equal((calls[0].body as { instructions: string }).instructions, "Keep the name Adaeze.");
+});
+
+test("dubs.quality returns the report", async () => {
+  const quality = {
+    dub_id: "job_1",
+    checked: true,
+    listened: true,
+    lines: 40,
+    fixed: 2,
+    to_review: 1,
+    flagged: [{ line: 3, start_ms: 9000, checks: ["fit"], fixed: "shortened" }],
+  };
+  const { fetch, calls } = mockFetch(() => json(200, quality));
+  assert.deepEqual(await client(fetch).dubs.quality("job_1"), quality);
+  assert.equal(calls[0].url, "https://api.reedapt.com/v1/dubs/job_1/quality");
+});
+
+test("dubs.requests.create posts the request, defaults to ask, and is not retried after a network failure", async () => {
+  const run = { id: "run_1", object: "run", dub_id: "job_1", status: "done", request: "Is line 3 natural?", reply: "Yes.", created_at: "x" };
+  const ok = mockFetch(() => json(200, run));
+  assert.deepEqual(await client(ok.fetch).dubs.requests.create("job_1", { text: "Is line 3 natural?" }), run);
+  assert.equal(ok.calls[0].method, "POST");
+  assert.equal(ok.calls[0].url, "https://api.reedapt.com/v1/dubs/job_1/requests");
+  assert.deepEqual(ok.calls[0].body, { autonomy: "ask", text: "Is line 3 natural?" });
+  assert.equal(ok.calls[0].headers["idempotency-key"], undefined);
+
+  const decide = mockFetch(() => json(200, run));
+  await client(decide.fetch).dubs.requests.create("job_1", { text: "Fix it.", autonomy: "decide" });
+  assert.equal((decide.calls[0].body as { autonomy: string }).autonomy, "decide");
+
+  const down = mockFetch(() => {
+    throw new TypeError("network down");
+  });
+  await assert.rejects(client(down.fetch).dubs.requests.create("job_1", { text: "x" }));
+  assert.equal(down.calls.length, 1);
+});
+
+test("a request that isn't released yet throws a 403 with NOT_AVAILABLE", async () => {
+  const { fetch } = mockFetch(() => apiError(403, "NOT_AVAILABLE"));
+  await assert.rejects(client(fetch).dubs.requests.create("job_1", { text: "x" }), (e: APIError) => {
+    assert.equal(e.status, 403);
+    assert.equal(e.code, "NOT_AVAILABLE");
+    return true;
+  });
+});
+
+test("runs.retrieve and runs.answer", async () => {
+  const run = {
+    id: "run_1",
+    dub_id: "job_1",
+    status: "needs_input",
+    request: "Calmer.",
+    reply: "I can soften line 3.",
+    proposal: { kind: "edit_lines", summary: "Soften line 3", lines: 1 },
+    options: [{ id: "apply", label: "Apply" }, { id: "decline", label: "Decline" }],
+    created_at: "x",
+  };
+  const { fetch, calls } = mockFetch((call) =>
+    call.method === "GET" ? json(200, run) : json(200, { ...run, status: "declined", proposal: null, options: null }),
+  );
+  const c = client(fetch);
+  assert.deepEqual(await c.runs.retrieve("run_1"), run);
+  assert.equal(calls[0].url, "https://api.reedapt.com/v1/runs/run_1");
+  const answered = await c.runs.answer("run_1", { choice: "decline" });
+  assert.equal(answered.status, "declined");
+  assert.equal(calls[1].method, "POST");
+  assert.equal(calls[1].url, "https://api.reedapt.com/v1/runs/run_1/answer");
+  assert.deepEqual(calls[1].body, { choice: "decline" });
+});
+
+test("dubs.lines.list and dubs.lines.edit", async () => {
+  const line = { line: 3, start_ms: 1, end_ms: 2, speaker: "SPEAKER_00", original_text: "Hi.", text: "Salut.", delivery_style: null, voice_instructions: null };
+  const { fetch, calls } = mockFetch((call) =>
+    call.method === "GET" ? json(200, { dub_id: "job_1", lines: [line] }) : json(202, { dub_id: "job_1", lines: [3], status: "revoicing" }),
+  );
+  const c = client(fetch);
+  assert.deepEqual((await c.dubs.lines.list("job_1")).lines, [line]);
+  assert.equal(calls[0].url, "https://api.reedapt.com/v1/dubs/job_1/lines");
+  const edited = await c.dubs.lines.edit("job_1", { lines: [{ line: 3, text: "Bonjour." }] });
+  assert.equal(edited.status, "revoicing");
+  assert.equal(calls[1].url, "https://api.reedapt.com/v1/dubs/job_1/lines/edit");
+  assert.deepEqual(calls[1].body, { lines: [{ line: 3, text: "Bonjour." }] });
 });

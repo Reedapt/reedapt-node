@@ -6,7 +6,7 @@ import {
   TimeoutError,
   type ErrorBody,
 } from "./errors.ts";
-import { Dubs } from "./resources/dubs.ts";
+import { Dubs, Runs } from "./resources/dubs.ts";
 import { Uploads, type UploadInput, type UploadFileOptions } from "./resources/uploads.ts";
 import { WebhookEndpoints } from "./resources/webhook-endpoints.ts";
 import type { CreateDubsParams, DubsCreated, Languages, Usage, UsageReport } from "./types.ts";
@@ -92,6 +92,8 @@ export class Reedapt {
   readonly maxRetries: number;
   readonly uploads: Uploads;
   readonly dubs: Dubs;
+  /** Requests for changes to dubs. Early access. */
+  readonly runs: Runs;
   readonly webhookEndpoints: WebhookEndpoints;
   readonly webhooks: Webhooks;
   readonly languages: { list: (options?: RequestOptions) => Promise<Languages> };
@@ -121,6 +123,7 @@ export class Reedapt {
 
     this.uploads = new Uploads(this);
     this.dubs = new Dubs(this);
+    this.runs = new Runs(this);
     this.webhookEndpoints = new WebhookEndpoints(this);
     this.webhooks = new Webhooks();
     this.languages = {

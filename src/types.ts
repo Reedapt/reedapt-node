@@ -106,6 +106,112 @@ export interface SubtitlesParams {
   language?: "target" | "source";
 }
 
+/** How a line that Reedapt flagged was dealt with, if it was. */
+export type QualityFix = "shortened" | "revoiced";
+
+export interface FlaggedLine {
+  line: number;
+  start_ms: number;
+  /** What the checks found, such as `fit` (the line doesn't fit its time). */
+  checks: string[];
+  fixed: QualityFix | null;
+}
+
+/** Reedapt's check of a finished dub. */
+export interface Quality {
+  dub_id: string;
+  /** Whether the measurement checks have run. */
+  checked: boolean;
+  listened: boolean;
+  lines: number;
+  fixed: number;
+  to_review: number;
+  flagged: FlaggedLine[];
+}
+
+export type RunStatus = "done" | "needs_input" | "applied" | "declined" | "failed";
+export type RunChoice = "apply" | "decline";
+/** `ask` waits for your answer before changing anything; `decide` lets Reedapt apply changes itself. */
+export type Autonomy = "ask" | "decide";
+
+export interface RunProposal {
+  kind: string;
+  summary: string;
+  /** How many lines it would change. */
+  lines: number;
+}
+
+export interface RunOption {
+  id: RunChoice;
+  label: string;
+}
+
+/** A request for changes to a dub, and what Reedapt did or proposes to do about it. */
+export interface Run {
+  id: string;
+  object?: "run";
+  dub_id: string;
+  status: RunStatus;
+  request: string;
+  reply: string;
+  /** Present while `status` is `needs_input`. */
+  proposal?: RunProposal | null;
+  options?: RunOption[] | null;
+  /** How many lines were changed, once the run is `applied`. They are voiced again in the background. */
+  applied_lines?: number | null;
+  created_at: string;
+}
+
+export interface CreateRunParams {
+  text: string;
+  /** Defaults to `ask`. */
+  autonomy?: Autonomy;
+}
+
+export interface AnswerRunParams {
+  choice: RunChoice;
+}
+
+export interface DubLine {
+  /** The line's number in time order, starting at 1. */
+  line: number;
+  start_ms: number;
+  end_ms: number;
+  speaker?: string | null;
+  original_text: string;
+  /** The line in the dub's language. */
+  text: string;
+  delivery_style?: string | null;
+  voice_instructions?: string | null;
+}
+
+export interface DubLines {
+  dub_id: string;
+  lines: DubLine[];
+}
+
+export interface LineEdit {
+  line: number;
+  /** New wording, in the dub's language. */
+  text?: string;
+  /** For example `angry` or `whisper`. `null` clears it. */
+  delivery_style?: string | null;
+  /** How to say it, in plain words. Up to 300 characters. */
+  voice_instructions?: string | null;
+}
+
+export interface EditLinesParams {
+  /** At most 100 lines. */
+  lines: LineEdit[];
+}
+
+export interface LinesEdited {
+  dub_id: string;
+  /** The lines being voiced again. */
+  lines: number[];
+  status: "revoicing";
+}
+
 export interface Languages {
   target_languages: string[];
 }
@@ -193,6 +299,7 @@ interface EventBase<T extends string, D> {
 
 export type DubCompletedEvent = EventBase<"dub.completed", { dub: Dub }>;
 export type DubFailedEvent = EventBase<"dub.failed", { dub: Dub }>;
+export type DubCheckedEvent = EventBase<"dub.checked", { dub: Dub; quality: Quality }>;
 export type BatchCompletedEvent = EventBase<"batch.completed", { batch: BatchSummary }>;
 export type WebhookTestEvent = EventBase<"webhook.test", Record<string, unknown>>;
 
@@ -200,6 +307,7 @@ export type WebhookTestEvent = EventBase<"webhook.test", Record<string, unknown>
 export type WebhookEvent =
   | DubCompletedEvent
   | DubFailedEvent
+  | DubCheckedEvent
   | BatchCompletedEvent
   | WebhookTestEvent
   | EventBase<string, Record<string, unknown>>;
@@ -217,6 +325,8 @@ export interface CreateDubsParams {
   voice_cloning?: boolean;
   num_speakers?: number;
   media_category?: string;
+  /** Notes for the dub, up to 2000 characters: names to keep, tone, how to address the audience. Followed on paid plans. */
+  instructions?: string;
   metadata?: Record<string, string>;
 }
 
