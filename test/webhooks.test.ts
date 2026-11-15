@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { test } from "node:test";
-import { constructWebhookEvent, Reedapt, verifyWebhook, WebhookVerificationError } from "../src/index.ts";
+import { constructWebhookEvent, type DubCheckedEvent, Reedapt, verifyWebhook, WebhookVerificationError } from "../src/index.ts";
 
 const SECRET = "whsec_test";
 const BODY = JSON.stringify({ id: "evt_1", type: "dub.completed", created_at: "x", data: { dub: { id: "job_1" } } });
@@ -54,4 +54,12 @@ test("any one of several v1 signatures may match", () => {
   const good = sign(BODY);
   const t = good.split(",")[0];
   assert.doesNotThrow(() => verifyWebhook(BODY, `${t},v1=${"0".repeat(64)},${good.split(",")[1]}`, SECRET));
+});
+
+test("a dub.checked delivery parses to the dub and its quality report", () => {
+  const quality = { dub_id: "job_1", checked: true, listened: true, lines: 10, fixed: 1, to_review: 0, flagged: [] };
+  const body = JSON.stringify({ id: "evt_2", type: "dub.checked", created_at: "x", data: { dub: { id: "job_1" }, quality } });
+  const event = constructWebhookEvent(body, sign(body), SECRET);
+  assert.equal(event.type, "dub.checked");
+  assert.deepEqual((event as DubCheckedEvent).data.quality, quality);
 });

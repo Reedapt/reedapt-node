@@ -52,6 +52,7 @@ const created = await reedapt.dubs.create({
   source_language: "en",
   target_languages: ["yo"],
   metadata: { order_id: "1042" },
+  instructions: "Keep the speaker's name, Adaeze, as it is. Warm, informal tone.", // paid plans
 });
 ```
 
@@ -71,11 +72,42 @@ await reedapt.dubs.files("job_3f9a2c7e1b4d"); // links last an hour
 await reedapt.dubs.cancel("job_3f9a2c7e1b4d"); // minutes are returned
 await reedapt.dubs.transcript("job_3f9a2c7e1b4d"); // every line, with timing, speaker and translation
 await reedapt.dubs.subtitles("job_3f9a2c7e1b4d", { format: "vtt" }); // SRT (default) or WebVTT text
+await reedapt.dubs.quality("job_3f9a2c7e1b4d"); // Reedapt's check: lines fixed and lines left to review
 
 await reedapt.languages.list(); // { target_languages: [...] }
 await reedapt.usage.retrieve(); // plan, key mode and minutes left
 await reedapt.usage.report({ month: "2026-10" }); // minutes and dubs per key and per language
 ```
+
+## Ask Reedapt for changes
+
+Early access: this is released to some paid accounts first, and other accounts get a `403` with the code `NOT_AVAILABLE`. Describe a change in plain words and Reedapt either answers, proposes a change, or makes it. With `autonomy: "ask"` (the default) nothing changes until you say so:
+
+```ts
+let run = await reedapt.dubs.requests.create("job_3f9a2c7e1b4d", {
+  text: "Is line 3 natural? If not, make it sound calmer.",
+  autonomy: "ask",
+});
+console.log(run.reply);
+
+if (run.status === "needs_input") {
+  console.log(run.proposal?.summary, run.proposal?.lines); // lines = how many it would change
+  run = await reedapt.runs.answer(run.id, { choice: "apply" }); // or "decline"
+}
+// run.status is done, applied, declined or failed; run.applied_lines counts the lines changed.
+await reedapt.runs.retrieve(run.id);
+```
+
+You can also read and edit lines yourself. Edited lines are voiced again in the background:
+
+```ts
+const { lines } = await reedapt.dubs.lines.list("job_3f9a2c7e1b4d");
+await reedapt.dubs.lines.edit("job_3f9a2c7e1b4d", {
+  lines: [{ line: 3, text: "Bienvenue chez nous.", delivery_style: "warm" }],
+}); // { dub_id, lines: [3], status: "revoicing" }
+```
+
+A request counts against your plan's allowance for these requests; when it's used up you get `AGENT_ALLOWANCE_USED` (429) until it renews.
 
 ## Webhooks
 
@@ -97,7 +129,10 @@ app.post("/reedapt/webhooks", express.raw({ type: "application/json" }), (req, r
   }
   if (event.type === "dub.completed") {
     // event.data.dub is the finished dub. Queue the work, then answer quickly.
-  }
+  } else if (event.type === "dub.checked") {
+    // A few minutes later, on plans where Reedapt checks dubs:
+    // event.data.quality lists the lines it fixed and the ones left to review.
+  } // Ignore types you don't know; every endpoint gets every event.
   res.sendStatus(200);
 });
 ```

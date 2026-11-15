@@ -1,12 +1,19 @@
 import { sleep, type Reedapt, type RequestOptions } from "../client.ts";
 import { WaitError } from "../errors.ts";
 import type {
+  AnswerRunParams,
   CreateDubsParams,
+  CreateRunParams,
   Dub,
   DubFiles,
+  DubLines,
   DubList,
   DubsCreated,
+  EditLinesParams,
+  LinesEdited,
   ListDubsParams,
+  Quality,
+  Run,
   SubtitlesParams,
   Transcript,
 } from "../types.ts";
@@ -17,11 +24,103 @@ export interface WaitForDubOptions extends WaitOptions {
   onUpdate?: (dub: Dub) => void;
 }
 
-export class Dubs {
+/** Asking Reedapt for changes to a finished dub. Early access. */
+export class DubRequests {
   readonly #client: Reedapt;
 
   constructor(client: Reedapt) {
     this.#client = client;
+  }
+
+  /**
+   * Hands Reedapt a request in plain words, such as "Make line 3 sound calmer".
+   * With `autonomy: "ask"` (the default) nothing changes until you answer the
+   * run with `runs.answer`. With `"decide"` Reedapt applies what it judges right.
+   */
+  create(dubId: string, params: CreateRunParams, options?: RequestOptions): Promise<Run> {
+    // Not retried after a network failure: it could start the request twice.
+    return this.#client.request(
+      {
+        method: "POST",
+        path: `/dubs/${encodeURIComponent(dubId)}/requests`,
+        body: { autonomy: "ask", ...params },
+        retry: "unsafe",
+      },
+      options,
+    );
+  }
+}
+
+/** Reading and editing a finished dub's lines. Early access. */
+export class DubLinesResource {
+  readonly #client: Reedapt;
+
+  constructor(client: Reedapt) {
+    this.#client = client;
+  }
+
+  /** Every line with its timing, speaker, original and dubbed words, and delivery notes. */
+  list(dubId: string, options?: RequestOptions): Promise<DubLines> {
+    return this.#client.request(
+      { method: "GET", path: `/dubs/${encodeURIComponent(dubId)}/lines`, retry: "safe" },
+      options,
+    );
+  }
+
+  /** Changes up to 100 lines. They are voiced again in the background; the dub's files update when that finishes. */
+  edit(dubId: string, params: EditLinesParams, options?: RequestOptions): Promise<LinesEdited> {
+    return this.#client.request(
+      {
+        method: "POST",
+        path: `/dubs/${encodeURIComponent(dubId)}/lines/edit`,
+        body: params,
+        retry: "unsafe",
+      },
+      options,
+    );
+  }
+}
+
+/** Requests for changes to dubs. Early access. */
+export class Runs {
+  readonly #client: Reedapt;
+
+  constructor(client: Reedapt) {
+    this.#client = client;
+  }
+
+  retrieve(runId: string, options?: RequestOptions): Promise<Run> {
+    return this.#client.request(
+      { method: "GET", path: `/runs/${encodeURIComponent(runId)}`, retry: "safe" },
+      options,
+    );
+  }
+
+  /** Answers a run that is `needs_input`: `apply` the proposal or `decline` it. */
+  answer(runId: string, params: AnswerRunParams, options?: RequestOptions): Promise<Run> {
+    return this.#client.request(
+      {
+        method: "POST",
+        path: `/runs/${encodeURIComponent(runId)}/answer`,
+        body: params,
+        retry: "unsafe",
+      },
+      options,
+    );
+  }
+}
+
+export class Dubs {
+  readonly #client: Reedapt;
+  /** Ask Reedapt for changes to a finished dub. Early access. */
+  readonly requests: DubRequests;
+  /** Read and edit a dub's lines. Early access. */
+  readonly lines: DubLinesResource;
+
+  constructor(client: Reedapt) {
+    this.#client = client;
+    this.requests = new DubRequests(client);
+    this.lines = new DubLinesResource(client);
   }
 
   /** Starts one dub per target language. Languages that can't start come back in `refused`. */
@@ -83,6 +182,18 @@ export class Dubs {
   transcript(dubId: string, options?: RequestOptions): Promise<Transcript> {
     return this.#client.request(
       { method: "GET", path: `/dubs/${encodeURIComponent(dubId)}/transcript`, retry: "safe" },
+      options,
+    );
+  }
+
+  /**
+   * Reedapt's check of a finished dub: what it listened to, what it fixed and
+   * the lines left for you to review. `checked` is false until the check has run;
+   * the `dub.checked` webhook announces it.
+   */
+  quality(dubId: string, options?: RequestOptions): Promise<Quality> {
+    return this.#client.request(
+      { method: "GET", path: `/dubs/${encodeURIComponent(dubId)}/quality`, retry: "safe" },
       options,
     );
   }
